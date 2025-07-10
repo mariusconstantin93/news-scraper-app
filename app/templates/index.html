@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Scraper App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Welcome to the News Scraper App</h1>
+        {% include 'includes/navigation.html' %}
+    </header>
+    <main class="container">
+        <section class="card">
+            <h2>About the App</h2>
+            <p>This application collects, stores, and visualizes news data from various sources and social media.</p>
+            
+            <h3>Features:</h3>
+            <ul>
+                <li>🔄 Automated scraping every 2 hours from Biziday and Adevărul</li>
+                <li>📊 Real-time statistics and data visualization</li>
+                <li>🚫 Duplicate prevention system</li>
+                <li>🌐 REST API for data access</li>
+                <li>📱 Responsive web interface</li>
+            </ul>
+            
+            <h3>Quick Links:</h3>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <a href="/news" class="btn">Latest News</a>
+                <a href="/stats" class="btn">Statistics</a>
+                <a href="/api/news" class="btn">API - News</a>
+            </div>
+        </section>
+    </main>
+    <footer style="text-align: center; margin-top: 50px; padding: 20px; background: #35424a; color: white;">
+        <p>&copy; 2025 News Scraper App</p>
+    </footer>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

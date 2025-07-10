@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistics - News Scraper</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Statistics Dashboard</h1>
+        {% include 'includes/navigation.html' %}
+    </header>
+    
+    <div class="container">
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_articles }}</div>
+                <div class="stat-label">Total Articles</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ active_sources }}</div>
+                <div class="stat-label">Active Sources</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ average_length }}</div>
+                <div class="stat-label">Avg. Length (words)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="articles-today">0</div>
+                <div class="stat-label">Articles Today</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="card">
+            <h2>Articles Distribution Over Time</h2>
+            
+            <!-- Date Range Selection Form -->
+            <div class="date-controls" style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">
+                <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                    <div>
+                        <label for="start-date" style="display: block; margin-bottom: 5px; font-weight: bold;">Start Date:</label>
+                        <input type="date" id="start-date" value="{{ current_date }}" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label for="end-date" style="display: block; margin-bottom: 5px; font-weight: bold;">End Date:</label>
+                        <input type="date" id="end-date" value="{{ current_date }}" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label for="start-hour" style="display: block; margin-bottom: 5px; font-weight: bold;">Start Hour:</label>
+                        <select id="start-hour" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">All Hours</option>
+                            <option value="0">00:00</option>
+                            <option value="1">01:00</option>
+                            <option value="2">02:00</option>
+                            <option value="3">03:00</option>
+                            <option value="4">04:00</option>
+                            <option value="5">05:00</option>
+                            <option value="6">06:00</option>
+                            <option value="7">07:00</option>
+                            <option value="8">08:00</option>
+                            <option value="9">09:00</option>
+                            <option value="10">10:00</option>
+                            <option value="11">11:00</option>
+                            <option value="12">12:00</option>
+                            <option value="13">13:00</option>
+                            <option value="14">14:00</option>
+                            <option value="15">15:00</option>
+                            <option value="16">16:00</option>
+                            <option value="17">17:00</option>
+                            <option value="18">18:00</option>
+                            <option value="19">19:00</option>
+                            <option value="20">20:00</option>
+                            <option value="21">21:00</option>
+                            <option value="22">22:00</option>
+                            <option value="23">23:00</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="end-hour" style="display: block; margin-bottom: 5px; font-weight: bold;">End Hour:</label>
+                        <select id="end-hour" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">All Hours</option>
+                            <option value="0">00:00</option>
+                            <option value="1">01:00</option>
+                            <option value="2">02:00</option>
+                            <option value="3">03:00</option>
+                            <option value="4">04:00</option>
+                            <option value="5">05:00</option>
+                            <option value="6">06:00</option>
+                            <option value="7">07:00</option>
+                            <option value="8">08:00</option>
+                            <option value="9">09:00</option>
+                            <option value="10">10:00</option>
+                            <option value="11">11:00</option>
+                            <option value="12">12:00</option>
+                            <option value="13">13:00</option>
+                            <option value="14">14:00</option>
+                            <option value="15">15:00</option>
+                            <option value="16">16:00</option>
+                            <option value="17">17:00</option>
+                            <option value="18">18:00</option>
+                            <option value="19">19:00</option>
+                            <option value="20">20:00</option>
+                            <option value="21">21:00</option>
+                            <option value="22">22:00</option>
+                            <option value="23">23:00</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="source-selector" style="display: block; margin-bottom: 5px; font-weight: bold;">Sources:</label>
+                        <div id="source-selector" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <!-- Source checkboxes will be loaded dynamically -->
+                        </div>
+                    </div>
+                    <div style="align-self: flex-end;">
+                        <button id="update-chart" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            Update Chart
+                        </button>
+                    </div>
+                    <div style="align-self: flex-end;">
+                        <button id="today-btn" style="padding: 10px 15px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            Today
+                        </button>
+                    </div>
+                    <div style="align-self: flex-end;">
+                        <button id="show-all-time" style="padding: 10px 15px; background-color: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            Show All Time
+                        </button>
+                    </div>
+                    <div style="align-self: flex-end;">
+                        <button id="select-all-sources" style="padding: 10px 15px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            All Sources
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="newsStatsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Combined Statistics Row -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div class="card">
+                <h2>Articles by Source</h2>
+                <div class="chart-container">
+                    <canvas id="sourceChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Content Length Statistics</h2>
+                <div id="content-stats-container">
+                    <p>Loading content statistics...</p>
+                </div>
+                <div class="chart-container" style="margin-top: 20px;">
+                    <canvas id="contentChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let newsStatsChart = null;
+        let contentChart = null;
+        let availableSources = [];
+        
+        // Load available sources and create checkboxes
+        function loadSources() {
+            fetch('/api/sources')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error loading sources:', data.error);
+                        return;
+                    }
+                    
+                    availableSources = data.sources;
+                    const sourceSelector = document.getElementById('source-selector');
+                    
+                    // Create checkboxes for each source
+                    sourceSelector.innerHTML = availableSources.map(source => `
+                        <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; margin-right: 10px;">
+                            <input type="checkbox" 
+                                   id="source-${source}" 
+                                   value="${source}" 
+                                   checked 
+                                   style="margin: 0;">
+                            <span>${source}</span>
+                            <small style="color: #666;">(${data.source_info[source]?.article_count || 0})</small>
+                        </label>
+                    `).join('');
+                    
+                    // Add event listeners to checkboxes
+                    availableSources.forEach(source => {
+                        document.getElementById(`source-${source}`).addEventListener('change', function() {
+                            // Auto-update chart when source selection changes
+                            updateChart();
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading sources:', error);
+                });
+        }
+        
+        // Get selected sources from checkboxes
+        function getSelectedSources() {
+            return availableSources.filter(source => 
+                document.getElementById(`source-${source}`).checked
+            );
+        }
+        
+        // Load content statistics
+        function loadContentStats() {
+            fetch('/api/content-stats')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Content stats error:', data.error);
+                        return;
+                    }
+                    
+                    updateContentStatsDisplay(data);
+                    updateContentChart(data);
+                })
+                .catch(error => {
+                    console.error('Error loading content stats:', error);
+                });
+        }
+        
+        // Update content statistics display
+        function updateContentStatsDisplay(data) {
+            const container = document.getElementById('content-stats-container');
+            
+            let html = '<div style="display: grid; grid-template-columns: 1fr; gap: 10px;">';
+            
+            Object.keys(data.content_stats).forEach(source => {
+                const stats = data.content_stats[source];
+                html += `
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; border-left: 3px solid #007bff;">
+                        <h5 style="margin: 0 0 8px 0; color: #007bff; font-size: 14px;">${source}</h5>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 12px;">
+                            <div><strong>Articles:</strong> ${stats.total_articles}</div>
+                            <div><strong>Avg Words:</strong> ${stats.avg_words}</div>
+                            <div><strong>Min:</strong> ${stats.min_words}</div>
+                            <div><strong>Max:</strong> ${stats.max_words}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        // Update content chart
+        function updateContentChart(data) {
+            const ctx = document.getElementById('contentChart').getContext('2d');
+            
+            const sources = Object.keys(data.content_stats);
+            const avgWords = sources.map(source => data.content_stats[source].avg_words);
+            const colors = [
+                'rgba(255, 99, 132, 0.8)',
+                'rgba(54, 162, 235, 0.8)',
+                'rgba(255, 205, 86, 0.8)',
+                'rgba(75, 192, 192, 0.8)'
+            ];
+            
+            // Destroy existing chart if it exists
+            if (contentChart) {
+                contentChart.destroy();
+            }
+            
+            contentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sources,
+                    datasets: [{
+                        label: 'Average Words per Article',
+                        data: avgWords,
+                        backgroundColor: colors,
+                        borderColor: colors.map(color => color.replace('0.8', '1')),
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Average Article Length by Source'
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Average Words'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'News Source'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Initialize chart with current date
+        function initializeChart() {
+            updateChart();
+        }
+        
+        // Update chart with current form values
+        function updateChart() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            const startHour = document.getElementById('start-hour').value;
+            const endHour = document.getElementById('end-hour').value;
+            const selectedSources = getSelectedSources();
+            
+            // Build URL parameters
+            let params = new URLSearchParams();
+            
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+            if (startHour) params.append('start_hour', startHour);
+            if (endHour) params.append('end_hour', endHour);
+            
+            selectedSources.forEach(source => {
+                params.append('sources', source);
+            });
+            
+            const url = `/api/chart-data?${params.toString()}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Chart data error:', data.error);
+                        showNotification('Error loading chart data: ' + data.error, 'error');
+                        return;
+                    }
+                    
+                    console.log('Chart data received:', data);
+                    
+                    // Update chart title based on parameters
+                    let title = 'Articles Distribution Over Time';
+                    
+                    // Add date range to title
+                    if (data.show_all_time) {
+                        title += ' (All Time)';
+                    } else if (data.date_range.start === data.date_range.end) {
+                        title += ` (${new Date(data.date_range.start).toLocaleDateString()})`;
+                    } else {
+                        title += ` (${new Date(data.date_range.start).toLocaleDateString()} - ${new Date(data.date_range.end).toLocaleDateString()})`;
+                    }
+                    
+                    // Add hour range to title if specified
+                    if (data.hour_range && data.hour_range.start !== null && data.hour_range.end !== null) {
+                        title += ` [${String(data.hour_range.start).padStart(2, '0')}:00 - ${String(data.hour_range.end).padStart(2, '0')}:00]`;
+                    }
+                    
+                    // Add source information to title
+                    const selectedSources = getSelectedSources();
+                    if (selectedSources.length > 0 && selectedSources.length < availableSources.length) {
+                        if (selectedSources.length === 1) {
+                            title += ` - ${selectedSources[0]}`;
+                        } else if (selectedSources.length <= 3) {
+                            title += ` - ${selectedSources.join(', ')}`;
+                        } else {
+                            title += ` - ${selectedSources.length} sources`;
+                        }
+                    }
+                    
+                    // Show total articles in subtitle if data exists
+                    if (data.total_articles > 0) {
+                        title += ` (${data.total_articles} articles)`;
+                    }
+                    
+                    // Check if we have any data
+                    const hasData = data.datasets.some(dataset => dataset.data.some(value => value > 0));
+                    
+                    // Destroy existing chart if it exists
+                    if (newsStatsChart) {
+                        newsStatsChart.destroy();
+                    }
+                    
+                    // Create new chart
+                    const ctx = document.getElementById('newsStatsChart').getContext('2d');
+                    
+                    newsStatsChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.labels,
+                            datasets: data.datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: hasData ? title : 'No articles found for selected criteria'
+                                },
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Number of Articles'
+                                    },
+                                    ticks: {
+                                        stepSize: 1
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: data.granularity === 'daily' ? 'Date' : 'Time (Hours)'
+                                    }
+                                }
+                            },
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            }
+                        }
+                    });
+                    
+                    // Show notification if no data
+                    if (!hasData) {
+                        showNotification('No articles found for the selected criteria. Try adjusting your filters or run the data insertion script.', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching chart data:', error);
+                    showNotification('Error loading chart data. Please try again.', 'error');
+                });
+        }
+        
+        // Update chart with "Show All Time" mode
+        function updateChartShowAllTime() {
+            let params = new URLSearchParams();
+            params.append('show_all_time', 'true');
+            
+            const selectedSources = getSelectedSources();
+            selectedSources.forEach(source => {
+                params.append('sources', source);
+            });
+            
+            const url = `/api/chart-data?${params.toString()}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Chart data error:', data.error);
+                        showNotification('Error loading chart data: ' + data.error, 'error');
+                        return;
+                    }
+                    
+                    console.log('Chart data received:', data);
+                    
+                    // Update the date inputs to show the actual range
+                    if (data.date_range.start && data.date_range.end) {
+                        document.getElementById('start-date').value = data.date_range.start;
+                        document.getElementById('end-date').value = data.date_range.end;
+                    }
+                    
+                    // Clear hour selection
+                    document.getElementById('start-hour').value = '';
+                    document.getElementById('end-hour').value = '';
+                    
+                    // Process the data same as regular updateChart
+                    let title = 'Articles Distribution Over Time (All Time)';
+                    
+                    // Add source information to title
+                    const selectedSources = getSelectedSources();
+                    if (selectedSources.length > 0 && selectedSources.length < availableSources.length) {
+                        if (selectedSources.length === 1) {
+                            title += ` - ${selectedSources[0]}`;
+                        } else if (selectedSources.length <= 3) {
+                            title += ` - ${selectedSources.join(', ')}`;
+                        } else {
+                            title += ` - ${selectedSources.length} sources`;
+                        }
+                    }
+                    
+                    // Show total articles in subtitle if data exists
+                    if (data.total_articles > 0) {
+                        title += ` (${data.total_articles} articles)`;
+                    }
+                    
+                    // Check if we have any data
+                    const hasData = data.datasets.some(dataset => dataset.data.some(value => value > 0));
+                    
+                    // Destroy existing chart if it exists
+                    if (newsStatsChart) {
+                        newsStatsChart.destroy();
+                    }
+                    
+                    // Create new chart
+                    const ctx = document.getElementById('newsStatsChart').getContext('2d');
+                    
+                    newsStatsChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.labels,
+                            datasets: data.datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: hasData ? title : 'No articles found in database'
+                                },
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Number of Articles'
+                                    },
+                                    ticks: {
+                                        stepSize: 1
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: data.granularity === 'daily' ? 'Date' : 'Time (Hours)'
+                                    }
+                                }
+                            },
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            }
+                        }
+                    });
+                    
+                    // Show notification if no data
+                    if (!hasData) {
+                        showNotification('No articles found in the database. Try running the data insertion script.', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching chart data:', error);
+                    showNotification('Error loading chart data. Please try again.', 'error');
+                });
+        }
+        
+        // Show notification function
+        function showNotification(message, type = 'info') {
+            // Remove existing notification
+            const existingNotification = document.querySelector('.chart-notification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+            
+            const notification = document.createElement('div');
+            notification.className = 'chart-notification';
+            notification.style.cssText = `
+                background: ${type === 'error' ? '#f8d7da' : type === 'warning' ? '#fff3cd' : '#d1ecf1'};
+                border: 1px solid ${type === 'error' ? '#f5c6cb' : type === 'warning' ? '#ffeaa7' : '#bee5eb'};
+                color: ${type === 'error' ? '#721c24' : type === 'warning' ? '#856404' : '#0c5460'};
+                padding: 12px;
+                margin: 10px 0;
+                border-radius: 4px;
+                text-align: center;
+            `;
+            notification.innerHTML = message;
+            
+            const chartContainer = document.querySelector('.chart-container');
+            chartContainer.parentNode.insertBefore(notification, chartContainer);
+            
+            // Auto-remove after 5 seconds for non-error messages
+            if (type !== 'error') {
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 5000);
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('update-chart').addEventListener('click', function() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            
+            if (!startDate || !endDate) {
+                showNotification('Please select both start and end dates.', 'error');
+                return;
+            }
+            
+            if (new Date(startDate) > new Date(endDate)) {
+                showNotification('Start date cannot be after end date.', 'error');
+                return;
+            }
+            
+            updateChart();
+        });
+        
+        document.getElementById('today-btn').addEventListener('click', function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('start-date').value = today;
+            document.getElementById('end-date').value = today;
+            document.getElementById('start-hour').value = '';
+            document.getElementById('end-hour').value = '';
+            updateChart();
+        });
+        
+        document.getElementById('show-all-time').addEventListener('click', function() {
+            updateChartShowAllTime();
+        });
+        
+        document.getElementById('select-all-sources').addEventListener('click', function() {
+            // Toggle all sources
+            const allChecked = availableSources.every(source => 
+                document.getElementById(`source-${source}`).checked
+            );
+            
+            availableSources.forEach(source => {
+                document.getElementById(`source-${source}`).checked = !allChecked;
+            });
+            
+            // Update chart
+            updateChart();
+        });
+        
+        // Initialize chart on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSources();  // Load sources first
+            initializeChart();
+            
+            // Load additional statistics
+            loadContentStats();
+        });
+
+        // Load additional statistics
+        fetch('/api/stats')
+            .then(response => response.json())
+            .then(stats => {
+                // Update articles today
+                document.getElementById('articles-today').textContent = stats.recent_articles_24h;
+                
+                // Create source distribution chart
+                if (stats.articles_per_source && Object.keys(stats.articles_per_source).length > 0) {
+                    const sourceCtx = document.getElementById('sourceChart').getContext('2d');
+                    new Chart(sourceCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: Object.keys(stats.articles_per_source),
+                            datasets: [{
+                                data: Object.values(stats.articles_per_source),
+                                backgroundColor: [
+                                    'rgba(255, 99, 132, 0.8)',
+                                    'rgba(54, 162, 235, 0.8)',
+                                    'rgba(255, 205, 86, 0.8)'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Articles Distribution by Source'
+                                },
+                                legend: {
+                                    display: true,
+                                    position: 'bottom'
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.parsed;
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const percentage = ((value / total) * 100).toFixed(1);
+                                            
+                                            // Add average content length if available
+                                            let avgLength = '';
+                                            if (stats.avg_content_length && stats.avg_content_length[label]) {
+                                                avgLength = ` (Avg: ${stats.avg_content_length[label]} words)`;
+                                            }
+                                            
+                                            return `${label}: ${value} articles (${percentage}%)${avgLength}`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            })
+            .catch(error => console.error('Error fetching stats:', error));
+    </script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Articles</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Collected News Articles</h1>
+        {% include 'includes/navigation.html' %}
+    </header>
+    <div class="container">
+        <!-- Debug Information -->
+        <div class="card" style="background-color: #f0f8ff; border-left: 4px solid #007bff; margin-bottom: 20px;">
+            <h3>📊 Current Status</h3>
+            <p><strong>Total Items:</strong> {{ articles|length }}</p>
+            <p><strong>Sources Found:</strong> 
+                {% set sources = articles|map(attribute='source')|list %}
+                {% set unique_sources = sources|unique|list %}
+                {% for source in unique_sources %}
+                    <span class="source-badge source-{{ source.lower() }}">{{ source }}: {{ sources.count(source) }}</span>
+                {% endfor %}
+            </p>
+        </div>
+
+        <!-- Search and Filter Controls -->
+        <div class="card">
+            <h3>Search & Filter</h3>
+            <input type="text" id="search-input" placeholder="Search articles..." style="padding: 10px; width: 300px; margin-right: 10px;">
+            <select id="source-filter" style="padding: 10px; margin-right: 10px;">
+                <option value="">All Sources</option>
+                <option value="Biziday">Biziday</option>
+                <option value="Adevarul">Adevarul</option>
+                <option value="Facebook">Facebook</option>
+            </select>
+            <button onclick="clearFilters()" class="btn">Clear Filters</button>
+        </div>
+
+        <!-- Articles Table -->
+        <table class="table" id="news-table">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)">Title ↕</th>
+                    <th onclick="sortTable(1)">Summary ↕</th>
+                    <th onclick="sortTable(2)">Source ↕</th>
+                    <th onclick="sortTable(3)">Published At ↕</th>
+                    <th>Link</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for article in articles %}
+                <tr data-source="{{ article['source'] }}" data-type="{% if article['is_facebook_profile'] %}facebook{% else %}article{% endif %}">
+                    <td>
+                        {% if article['is_facebook_profile'] %}
+                            <span class="facebook-badge">👤</span> {{ article['title'] }}
+                        {% else %}
+                            {{ article['title'] }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {{ article['summary'][:150] }}
+                        {% if article['summary']|length > 150 %}...{% endif %}
+                    </td>
+                    <td>
+                        <span class="source-badge source-{{ article['source'].lower() }}">{{ article['source'] }}</span>
+                    </td>
+                    <td>{{ article['published_at'].strftime('%Y-%m-%d %H:%M') if article['published_at'] else (article['created_at'].strftime('%Y-%m-%d %H:%M') if article.get('created_at') else 'N/A') }}</td>
+                    <td>
+                        {% if article['link'] and article['link'] != '#' %}
+                            <a href="{{ article['link'] }}" target="_blank" class="btn">
+                                {% if article['is_facebook_profile'] %}View Profile{% else %}Read More{% endif %}
+                            </a>
+                        {% else %}
+                            <span class="btn disabled">No Link</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if articles|length == 0 %}
+        <div style="text-align: center; padding: 40px; background-color: #f8f9fa; border-radius: 8px; margin-top: 20px;">
+            <h3>No Articles Found</h3>
+            <p>No news articles have been scraped yet. The scheduler should start collecting articles automatically.</p>
+            <p><strong>Troubleshooting:</strong></p>
+            <ul style="text-align: left; display: inline-block;">
+                <li>Check if the scheduler is running</li>
+                <li>Verify database connectivity</li>
+                <li>Check scraper logs for errors</li>
+                <li>Try running scrapers manually: <code>python test_and_populate.py</code></li>
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div id="no-results" style="display: none; text-align: center; padding: 20px;">
+            <p>No articles found matching your search criteria.</p>
+        </div>
+    </div>
+
+    <script>
+        // Search functionality
+        document.getElementById('search-input').addEventListener('keyup', filterTable);
+        document.getElementById('source-filter').addEventListener('change', filterTable);
+
+        function filterTable() {
+            const searchInput = document.getElementById('search-input').value.toLowerCase();
+            const sourceFilter = document.getElementById('source-filter').value;
+            const table = document.getElementById('news-table');
+            const rows = table.getElementsByTagName('tr');
+            let visibleRows = 0;
+
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.getElementsByTagName('td');
+                const title = cells[0].textContent.toLowerCase();
+                const summary = cells[1].textContent.toLowerCase();
+                const source = row.getAttribute('data-source');
+                
+                const matchesSearch = title.includes(searchInput) || summary.includes(searchInput);
+                const matchesSource = !sourceFilter || source === sourceFilter;
+                
+                if (matchesSearch && matchesSource) {
+                    row.style.display = '';
+                    visibleRows++;
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+            
+            document.getElementById('no-results').style.display = visibleRows === 0 ? 'block' : 'none';
+        }
+
+        function clearFilters() {
+            document.getElementById('search-input').value = '';
+            document.getElementById('source-filter').value = '';
+            filterTable();
+        }
+
+        // Sort functionality
+        function sortTable(columnIndex) {
+            const table = document.getElementById('news-table');
+            const rows = Array.from(table.rows).slice(1);
+            const isAscending = table.getAttribute('data-sort-order') !== 'asc';
+            
+            rows.sort((a, b) => {
+                const aVal = a.cells[columnIndex].textContent.trim();
+                const bVal = b.cells[columnIndex].textContent.trim();
+                
+                if (columnIndex === 3) { // Date column
+                    return isAscending ? new Date(aVal) - new Date(bVal) : new Date(bVal) - new Date(aVal);
+                }
+                
+                return isAscending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            });
+            
+            const tbody = table.querySelector('tbody');
+            rows.forEach(row => tbody.appendChild(row));
+            
+            table.setAttribute('data-sort-order', isAscending ? 'asc' : 'desc');
+        }
+
+        // Auto-refresh every 30 seconds to show new articles
+        setInterval(() => {
+            window.location.reload();
+        }, 30000);
+    </script>
+
+    <style>
+        .facebook-badge {
+            color: #1877f2;
+            font-weight: bold;
+        }
+        .source-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .source-facebook { background: #1877f2; color: white; }
+        .source-biziday { background: #007bff; color: white; }
+        .source-adevarul { background: #dc3545; color: white; }
+        .btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</body>
+</html>

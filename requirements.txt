@@ -1,0 +1,13 @@
+Flask
+Flask-SQLAlchemy
+APScheduler
+requests
+beautifulsoup4
+lxml
+html5lib
+python-dateutil
+pytz
+Werkzeug
+psycopg2-binary
+python-dotenv
+sqlalchemy

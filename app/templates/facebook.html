@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Profile Scraper - News Scraper</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .facebook-scraper-section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        
+        .profile-input-form {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .profile-input {
+            flex: 1;
+            min-width: 300px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        
+        .profile-input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        
+        .search-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .search-btn:hover {
+            background: #0056b3;
+        }
+        
+        .search-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status-message {
+            padding: 12px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .help-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        
+        .help-section h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+        
+        .help-example {
+            background: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 5px 0;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .profile-result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        
+        .profile-result h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+        
+        .profile-field {
+            margin: 8px 0;
+        }
+        
+        .profile-field strong {
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Facebook Profile Scraper</h1>
+        {% include 'includes/navigation.html' %}
+    </header>
+    
+    <div class="container">
+        <div class="facebook-scraper-section">
+            <h2>🔍 Facebook Profile Scraper</h2>
+            <p>Enter a Facebook profile to extract public information. The scraper will attempt to extract the profile name, bio, location, and other publicly available information.</p>
+            
+            <div class="profile-input-form">
+                <input 
+                    type="text" 
+                    id="profile-input" 
+                    class="profile-input" 
+                    placeholder="Enter Facebook username, profile ID, or full URL..."
+                >
+                <button id="search-btn" class="search-btn">
+                    Search Profile
+                </button>
+            </div>
+            
+            <div id="status-container"></div>
+            <div id="result-container"></div>
+            
+            <div class="help-section">
+                <h4>📋 Supported Input Formats:</h4>
+                <div class="help-example">username → https://facebook.com/username</div>
+                <div class="help-example">@username → https://facebook.com/username</div>  
+                <div class="help-example">123456789 → https://facebook.com/profile.php?id=123456789</div>
+                <div class="help-example">https://facebook.com/username → direct URL</div>
+                
+                <h4>⚠️ Important Notes:</h4>
+                <ul>
+                    <li>Only publicly available information can be extracted</li>
+                    <li>Some profiles may have privacy settings that limit accessible data</li>
+                    <li>Extraction success depends on the profile's privacy settings</li>
+                    <li>Duplicate profiles will be detected and prevented</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Recent Facebook Profiles Section -->
+        <div class="card">
+            <h2>👥 Recent Facebook Profiles</h2>
+            <div id="recent-profiles">
+                <p>Loading recent profiles...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isSearching = false;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadRecentProfiles();
+            
+            // Set up event listeners
+            document.getElementById('search-btn').addEventListener('click', searchProfile);
+            document.getElementById('profile-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchProfile();
+                }
+            });
+        });
+        
+        function showStatus(message, type = 'info') {
+            const container = document.getElementById('status-container');
+            container.innerHTML = `<div class="status-message status-${type}">${message}</div>`;
+        }
+        
+        function clearResults() {
+            document.getElementById('result-container').innerHTML = '';
+        }
+        
+        function showSpinner() {
+            return '<span class="spinner"></span>';
+        }
+        
+        function searchProfile() {
+            if (isSearching) {
+                return;
+            }
+            
+            const profileInput = document.getElementById('profile-input').value.trim();
+            const searchBtn = document.getElementById('search-btn');
+            
+            if (!profileInput) {
+                showStatus('Please enter a Facebook profile to search.', 'error');
+                return;
+            }
+            
+            // Clear previous results
+            clearResults();
+            
+            // Update UI to show searching state
+            isSearching = true;
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = showSpinner() + 'Searching...';
+            showStatus('Searching for profile... This may take a few moments.', 'info');
+            
+            // Make API request
+            fetch('/api/scrape-facebook', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    profile_input: profileInput
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus(data.message, 'success');
+                    displayProfileResult(data.profile_data);
+                    // Reload recent profiles to show the new one
+                    loadRecentProfiles();
+                } else if (data.error) {
+                    if (data.existing_profile) {
+                        showStatus(data.message, 'warning');
+                        displayExistingProfile(data.existing_profile);
+                    } else {
+                        showStatus('Error: ' + data.error, 'error');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showStatus('Network error: ' + error.message, 'error');
+            })
+            .finally(() => {
+                // Reset UI
+                isSearching = false;
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = 'Search Profile';
+            });
+        }
+        
+        function displayProfileResult(profileData) {
+            const container = document.getElementById('result-container');
+            
+            const connectedAccounts = Array.isArray(profileData.connected_accounts) 
+                ? profileData.connected_accounts.join(', ') 
+                : (profileData.connected_accounts || 'None');
+            
+            const interests = Array.isArray(profileData.interests) 
+                ? profileData.interests.join(', ') 
+                : (profileData.interests || 'None');
+            
+            // Helper function to format JSON arrays
+            function formatJsonArray(data, field) {
+                if (!data) return 'N/A';
+                if (Array.isArray(data)) return data.map(item => typeof item === 'object' ? JSON.stringify(item) : item).join(', ');
+                if (typeof data === 'string') {
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (Array.isArray(parsed)) {
+                            return parsed.map(item => typeof item === 'object' ? JSON.stringify(item) : item).join(', ');
+                        }
+                    } catch (e) {
+                        return data;
+                    }
+                }
+                return data;
+            }
+            
+            // Helper function to format work history
+            function formatWorkHistory(workHistory) {
+                if (!workHistory) return 'N/A';
+                try {
+                    const parsed = Array.isArray(workHistory) ? workHistory : JSON.parse(workHistory);
+                    return parsed.map(work => {
+                        if (typeof work === 'string') {
+                            return work;
+                        } else if (typeof work === 'object' && work !== null) {
+                            const position = work.position || 'Position';
+                            const company = work.company || 'Company';
+                            const current = work.current ? ' (Current)' : '';
+                            return `${position} at ${company}${current}`;
+                        }
+                        return work;
+                    }).join(', ');
+                } catch (e) {
+                    return workHistory;
+                }
+            }
+            
+            // Helper function to format education
+            function formatEducation(education) {
+                if (!education) return 'N/A';
+                try {
+                    const parsed = Array.isArray(education) ? education : JSON.parse(education);
+                    return parsed.map(edu => {
+                        if (typeof edu === 'string') {
+                            return edu;
+                        } else if (typeof edu === 'object' && edu !== null) {
+                            const institution = edu.institution || 'Institution';
+                            const type = edu.type || 'Education';
+                            return `${institution} (${type})`;
+                        }
+                        return edu;
+                    }).join(', ');
+                } catch (e) {
+                    return education;
+                }
+            }
+            
+            container.innerHTML = `
+                <div class="profile-result">
+                    <h4>✅ Successfully Extracted Profile</h4>
+                    
+                    <!-- Basic Information -->
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">📋 Basic Information</h5>
+                        <div class="profile-field"><strong>Name:</strong> ${escapeHtml(profileData.name || 'N/A')}</div>
+                        <div class="profile-field"><strong>Username:</strong> ${escapeHtml(profileData.username || 'N/A')}</div>
+                        <div class="profile-field"><strong>Bio:</strong> ${escapeHtml(profileData.bio || 'N/A')}</div>
+                        <div class="profile-field"><strong>Profile URL:</strong> 
+                            <a href="${escapeHtml(profileData.profile_url)}" target="_blank">${escapeHtml(profileData.profile_url)}</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Professional Information -->
+                    ${profileData.professional_title || profileData.current_employer || profileData.work_history ? `
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">💼 Professional Information</h5>
+                        ${profileData.professional_title ? `<div class="profile-field"><strong>Title:</strong> ${escapeHtml(profileData.professional_title)}</div>` : ''}
+                        ${profileData.current_employer ? `<div class="profile-field"><strong>Current Employer:</strong> ${escapeHtml(profileData.current_employer)}</div>` : ''}
+                        ${profileData.work_history ? `<div class="profile-field"><strong>Work History:</strong> ${escapeHtml(formatWorkHistory(profileData.work_history))}</div>` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Education -->
+                    ${profileData.education ? `
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">🎓 Education</h5>
+                        <div class="profile-field"><strong>Education:</strong> ${escapeHtml(formatEducation(profileData.education))}</div>
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Location Information -->
+                    ${profileData.current_location || profileData.origin_location || profileData.location ? `
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">📍 Location Information</h5>
+                        ${profileData.current_location ? `<div class="profile-field"><strong>Current Location:</strong> ${escapeHtml(profileData.current_location)}</div>` : ''}
+                        ${profileData.origin_location ? `<div class="profile-field"><strong>Origin:</strong> ${escapeHtml(profileData.origin_location)}</div>` : ''}
+                        ${profileData.location ? `<div class="profile-field"><strong>General Location:</strong> ${escapeHtml(profileData.location)}</div>` : ''}
+                        ${profileData.country ? `<div class="profile-field"><strong>Country:</strong> ${escapeHtml(profileData.country)}</div>` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Personal Information -->
+                    ${profileData.relationship_status || profileData.languages ? `
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">👥 Personal Information</h5>
+                        ${profileData.relationship_status ? `<div class="profile-field"><strong>Relationship Status:</strong> ${escapeHtml(profileData.relationship_status)}</div>` : ''}
+                        ${profileData.languages ? `<div class="profile-field"><strong>Languages:</strong> ${escapeHtml(formatJsonArray(profileData.languages))}</div>` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Religious Information -->
+                    ${profileData.church_position || profileData.church_affiliation || profileData.religious_info ? `
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">⛪ Religious Information</h5>
+                        ${profileData.church_position ? `<div class="profile-field"><strong>Church Position:</strong> ${escapeHtml(profileData.church_position)}</div>` : ''}
+                        ${profileData.church_affiliation ? `<div class="profile-field"><strong>Church Affiliation:</strong> ${escapeHtml(profileData.church_affiliation)}</div>` : ''}
+                        ${profileData.religious_info ? `<div class="profile-field"><strong>Religious Info:</strong> ${escapeHtml(profileData.religious_info)}</div>` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Interests and Social -->
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">🎯 Interests & Social</h5>
+                        <div class="profile-field"><strong>Connected Accounts:</strong> ${escapeHtml(connectedAccounts)}</div>
+                        <div class="profile-field"><strong>Interests:</strong> ${escapeHtml(interests)}</div>
+                        ${profileData.interests_detailed ? `<div class="profile-field"><strong>Detailed Interests:</strong> ${escapeHtml(formatJsonArray(profileData.interests_detailed))}</div>` : ''}
+                        ${profileData.social_media_links ? `<div class="profile-field"><strong>Social Links:</strong> ${escapeHtml(formatJsonArray(profileData.social_media_links))}</div>` : ''}
+                    </div>
+                    
+                    <!-- Enhanced Information -->
+                    ${profileData.about_section || profileData.favorite_quotes || profileData.other_names || profileData.life_events ? `
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">📚 Additional Information</h5>
+                        ${profileData.about_section ? `<div class="profile-field"><strong>About:</strong> ${escapeHtml(profileData.about_section)}</div>` : ''}
+                        ${profileData.favorite_quotes ? `<div class="profile-field"><strong>Favorite Quote:</strong> ${escapeHtml(profileData.favorite_quotes)}</div>` : ''}
+                        ${profileData.other_names ? `<div class="profile-field"><strong>Other Names:</strong> ${escapeHtml(profileData.other_names)}</div>` : ''}
+                        ${profileData.life_events ? `<div class="profile-field"><strong>Life Events:</strong> ${escapeHtml(formatJsonArray(profileData.life_events))}</div>` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Contact Information -->
+                    ${profileData.contact_email || profileData.contact_phone || profileData.birthday || profileData.political_views ? `
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">📞 Contact & Personal</h5>
+                        ${profileData.contact_email ? `<div class="profile-field"><strong>Email:</strong> ${escapeHtml(profileData.contact_email)}</div>` : ''}
+                        ${profileData.contact_phone ? `<div class="profile-field"><strong>Phone:</strong> ${escapeHtml(profileData.contact_phone)}</div>` : ''}
+                        ${profileData.birthday ? `<div class="profile-field"><strong>Birthday:</strong> ${escapeHtml(profileData.birthday)}</div>` : ''}
+                        ${profileData.political_views ? `<div class="profile-field"><strong>Political Views:</strong> ${escapeHtml(profileData.political_views)}</div>` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Family Information -->
+                    ${profileData.family_members ? `
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">👨‍👩‍👧‍👦 Family</h5>
+                        <div class="profile-field"><strong>Family Members:</strong> ${escapeHtml(formatJsonArray(profileData.family_members))}</div>
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Metrics (if available) -->
+                    ${profileData.followers_count || profileData.friends_count || profileData.posts_count ? `
+                    <div style="margin-bottom: 15px;">
+                        <h5 style="color: #007bff; margin-bottom: 8px;">📊 Metrics</h5>
+                        ${profileData.followers_count ? `<div class="profile-field"><strong>Followers:</strong> ${profileData.followers_count.toLocaleString()}</div>` : ''}
+                        ${profileData.friends_count ? `<div class="profile-field"><strong>Friends:</strong> ${profileData.friends_count.toLocaleString()}</div>` : ''}
+                        ${profileData.posts_count ? `<div class="profile-field"><strong>Posts:</strong> ${profileData.posts_count.toLocaleString()}</div>` : ''}
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        function displayExistingProfile(existingProfile) {
+            const container = document.getElementById('result-container');
+            
+            container.innerHTML = `
+                <div class="profile-result">
+                    <h4>⚠️ Profile Already Exists</h4>
+                    <div class="profile-field"><strong>Name:</strong> ${escapeHtml(existingProfile.name || 'N/A')}</div>
+                    <div class="profile-field"><strong>Profile URL:</strong> 
+                        <a href="${escapeHtml(existingProfile.profile_url)}" target="_blank">${escapeHtml(existingProfile.profile_url)}</a>
+                    </div>
+                    <div class="profile-field"><strong>Added:</strong> ${new Date(existingProfile.created_at).toLocaleString()}</div>
+                </div>
+            `;
+        }
+        
+        function loadRecentProfiles() {
+            fetch('/api/facebook-users')
+                .then(response => response.json())
+                .then(profiles => {
+                    const container = document.getElementById('recent-profiles');
+                    
+                    if (profiles.length === 0) {
+                        container.innerHTML = '<p>No Facebook profiles have been scraped yet.</p>';
+                        return;
+                    }
+                    
+                    let html = '<div style="display: grid; gap: 15px;">';
+                    
+                    profiles.slice(0, 10).forEach(profile => {
+                        const connectedAccounts = Array.isArray(profile.connected_accounts) 
+                            ? profile.connected_accounts.join(', ') 
+                            : (profile.connected_accounts || 'None');
+                        
+                        // Helper to format additional info
+                        const additionalInfo = [];
+                        
+                        // Professional Information
+                        if (profile.professional_title) additionalInfo.push(`💼 ${profile.professional_title}`);
+                        if (profile.current_employer) additionalInfo.push(`🏢 ${profile.current_employer}`);
+                        if (profile.work_history) {
+                            try {
+                                const workHistory = JSON.parse(profile.work_history);
+                                if (workHistory.length > 0) {
+                                    const latestWork = workHistory[0];
+                                    if (latestWork.company && latestWork.company !== profile.current_employer) {
+                                        additionalInfo.push(`� ${latestWork.company}`);
+                                    }
+                                }
+                            } catch (e) {
+                                // Ignore parsing errors
+                            }
+                        }
+                        
+                        // Education
+                        if (profile.education) {
+                            try {
+                                const education = JSON.parse(profile.education);
+                                if (education.length > 0) {
+                                    const latestEdu = education[0];
+                                    if (latestEdu.institution) {
+                                        additionalInfo.push(`🎓 ${latestEdu.institution}`);
+                                    }
+                                }
+                            } catch (e) {
+                                if (profile.education) additionalInfo.push(`🎓 ${profile.education}`);
+                            }
+                        }
+                        
+                        // Location Information
+                        if (profile.current_location) additionalInfo.push(`�📍 ${profile.current_location}`);
+                        if (profile.origin_location && profile.origin_location !== profile.current_location) {
+                            additionalInfo.push(`🏠 ${profile.origin_location}`);
+                        }
+                        if (profile.country && !profile.current_location?.includes(profile.country)) {
+                            additionalInfo.push(`🌍 ${profile.country}`);
+                        }
+                        
+                        // Religious Information
+                        if (profile.church_position) additionalInfo.push(`⛪ ${profile.church_position}`);
+                        if (profile.church_affiliation) additionalInfo.push(`⛪ ${profile.church_affiliation}`);
+                        if (profile.religious_info) additionalInfo.push(`✨ ${profile.religious_info}`);
+                        
+                        // Personal Information
+                        if (profile.relationship_status) additionalInfo.push(`👥 ${profile.relationship_status}`);
+                        if (profile.birthday) additionalInfo.push(`🎂 ${profile.birthday}`);
+                        if (profile.languages) {
+                            try {
+                                const langs = JSON.parse(profile.languages);
+                                if (langs.length > 0) additionalInfo.push(`🗣️ ${langs.join(', ')}`);
+                            } catch (e) {
+                                if (profile.languages) additionalInfo.push(`🗣️ ${profile.languages}`);
+                            }
+                        }
+                        
+                        // Contact Information
+                        if (profile.contact_email) additionalInfo.push(`📧 ${profile.contact_email}`);
+                        if (profile.contact_phone) additionalInfo.push(`📞 ${profile.contact_phone}`);
+                        
+                        // Social & Interests
+                        if (profile.interests_detailed) {
+                            try {
+                                const interests = JSON.parse(profile.interests_detailed);
+                                if (interests.length > 0) additionalInfo.push(`🎯 ${interests.slice(0, 2).join(', ')}`);
+                            } catch (e) {
+                                if (profile.interests_detailed) additionalInfo.push(`🎯 ${profile.interests_detailed}`);
+                            }
+                        }
+                        
+                        // Social Media Links
+                        if (profile.social_media_links) {
+                            try {
+                                const socialLinks = JSON.parse(profile.social_media_links);
+                                const linkCount = Object.keys(socialLinks).length;
+                                if (linkCount > 0) {
+                                    additionalInfo.push(`� ${linkCount} social link${linkCount > 1 ? 's' : ''}`);
+                                }
+                            } catch (e) {
+                                // Ignore parsing errors
+                            }
+                        }
+                        
+                        // Additional Information
+                        if (profile.other_names) additionalInfo.push(`📝 ${profile.other_names}`);
+                        if (profile.favorite_quotes) additionalInfo.push(`💬 ${profile.favorite_quotes.substring(0, 40)}...`);
+                        if (profile.political_views) additionalInfo.push(`🗳️ ${profile.political_views}`);
+                        
+                        // Family Information
+                        if (profile.family_members) {
+                            try {
+                                const family = JSON.parse(profile.family_members);
+                                if (family.length > 0) additionalInfo.push(`👨‍👩‍👧‍👦 ${family.length} family member${family.length > 1 ? 's' : ''}`);
+                            } catch (e) {
+                                // Ignore parsing errors
+                            }
+                        }
+                        
+                        // Life Events
+                        if (profile.life_events) {
+                            try {
+                                const events = JSON.parse(profile.life_events);
+                                if (events.length > 0) additionalInfo.push(`📅 ${events.length} life event${events.length > 1 ? 's' : ''}`);
+                            } catch (e) {
+                                // Ignore parsing errors
+                            }
+                        }
+                        
+                        html += `
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 3px solid #007bff;">
+                                <h4 style="margin: 0 0 8px 0; color: #007bff;">${escapeHtml(profile.name || 'Unknown')}</h4>
+                                ${profile.username ? `<p style="margin: 2px 0; font-size: 12px; color: #6c757d;"><strong>@${escapeHtml(profile.username)}</strong></p>` : ''}
+                                <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">${escapeHtml(profile.bio || 'No bio available')}</p>
+                                ${additionalInfo.length > 0 ? `<p style="margin: 5px 0; font-size: 12px; color: #495057;">${escapeHtml(additionalInfo.slice(0, 8).join(' • '))}</p>` : ''}
+                                ${additionalInfo.length > 8 ? `<p style="margin: 5px 0; font-size: 12px; color: #495057;">... and ${additionalInfo.length - 8} more details</p>` : ''}
+                                <p style="margin: 5px 0; font-size: 12px;"><strong>Connected:</strong> ${escapeHtml(connectedAccounts)}</p>
+                                <p style="margin: 5px 0; font-size: 12px;">
+                                    <strong>URL:</strong> 
+                                    <a href="${escapeHtml(profile.profile_url || '#')}" target="_blank">${escapeHtml((profile.profile_url || '').substring(0, 50))}...</a>
+                                </p>
+                                
+                                <!-- Enhanced Details Section (Expandable) -->
+                                <div style="margin-top: 10px;">
+                                    <button onclick="toggleDetails('${profile.id}')" style="background: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+                                        View Full Details
+                                    </button>
+                                    <div id="details-${profile.id}" style="display: none; margin-top: 10px; padding: 10px; background: #fff; border-radius: 4px; border: 1px solid #dee2e6;">
+                                        ${formatEnhancedDetails(profile)}
+                                    </div>
+                                </div>
+                                
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #6c757d;">
+                                    <span><strong>Added:</strong> ${new Date(profile.created_at).toLocaleDateString()}</span>
+                                    ${profile.last_scraped_at ? `<span><strong>Last Scraped:</strong> ${new Date(profile.last_scraped_at).toLocaleDateString()}</span>` : ''}
+                                    ${profile.scraping_method ? `<span><strong>Method:</strong> ${escapeHtml(profile.scraping_method)}</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    container.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading profiles:', error);
+                    document.getElementById('recent-profiles').innerHTML = 
+                        '<p style="color: #dc3545;">Error loading profiles: ' + error.message + '</p>';
+                });
+        }
+        
+        function escapeHtml(unsafe) {
+            if (typeof unsafe !== 'string') return '';
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
+        function toggleDetails(profileId) {
+            const detailsDiv = document.getElementById(`details-${profileId}`);
+            const button = detailsDiv.previousElementSibling;
+            
+            if (detailsDiv.style.display === 'none') {
+                detailsDiv.style.display = 'block';
+                button.textContent = 'Hide Details';
+            } else {
+                detailsDiv.style.display = 'none';
+                button.textContent = 'View Full Details';
+            }
+        }
+        
+        function formatEnhancedDetails(profile) {
+            let details = '';
+            
+            // Professional Information
+            if (profile.professional_title || profile.current_employer || profile.work_history) {
+                details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">💼 Professional Information:</strong><br>';
+                if (profile.professional_title) details += `• Professional Title: ${escapeHtml(profile.professional_title)}<br>`;
+                if (profile.current_employer) details += `• Current Employer: ${escapeHtml(profile.current_employer)}<br>`;
+                if (profile.work_history) {
+                    try {
+                        const workHistory = JSON.parse(profile.work_history);
+                        if (workHistory.length > 0) {
+                            details += `• Work History: ${workHistory.length} position${workHistory.length > 1 ? 's' : ''}<br>`;
+                            workHistory.slice(0, 3).forEach(work => {
+                                details += `  - ${escapeHtml(work.position || 'Position')} at ${escapeHtml(work.company || 'Company')}<br>`;
+                            });
+                        }
+                    } catch (e) {
+                        details += `• Work History: ${escapeHtml(profile.work_history)}<br>`;
+                    }
+                }
+                details += '</div>';
+            }
+            
+            // Education
+            if (profile.education) {
+                details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">🎓 Education:</strong><br>';
+                try {
+                    const education = JSON.parse(profile.education);
+                    if (education.length > 0) {
+                        education.slice(0, 3).forEach(edu => {
+                            details += `• ${escapeHtml(edu.institution || 'Institution')}${edu.degree ? ' - ' + escapeHtml(edu.degree) : ''}<br>`;
+                        });
+                    }
+                } catch (e) {
+                    details += `• ${escapeHtml(profile.education)}<br>`;
+                }
+                details += '</div>';
+            }
+            
+            // Location Information
+            if (profile.current_location || profile.origin_location || profile.country) {
+                details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">📍 Location:</strong><br>';
+                if (profile.current_location) details += `• Current Location: ${escapeHtml(profile.current_location)}<br>`;
+                if (profile.origin_location) details += `• Origin: ${escapeHtml(profile.origin_location)}<br>`;
+                if (profile.country) details += `• Country: ${escapeHtml(profile.country)}<br>`;
+                details += '</div>';
+            }
+            
+            // Personal Information
+            if (profile.relationship_status || profile.birthday || profile.languages) {
+                details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">👥 Personal Information:</strong><br>';
+                if (profile.relationship_status) details += `• Relationship Status: ${escapeHtml(profile.relationship_status)}<br>`;
+                if (profile.birthday) details += `• Birthday: ${escapeHtml(profile.birthday)}<br>`;
+                if (profile.languages) {
+                    try {
+                        const langs = JSON.parse(profile.languages);
+                        if (langs.length > 0) details += `• Languages: ${langs.map(l => escapeHtml(l)).join(', ')}<br>`;
+                    } catch (e) {
+                        details += `• Languages: ${escapeHtml(profile.languages)}<br>`;
+                    }
+                }
+                details += '</div>';
+            }
+            
+            // Religious Information
+            if (profile.church_position || profile.church_affiliation || profile.religious_info) {
+                details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">⛪ Religious Information:</strong><br>';
+                if (profile.church_position) details += `• Church Position: ${escapeHtml(profile.church_position)}<br>`;
+                if (profile.church_affiliation) details += `• Church Affiliation: ${escapeHtml(profile.church_affiliation)}<br>`;
+                if (profile.religious_info) details += `• Religious Info: ${escapeHtml(profile.religious_info)}<br>`;
+                details += '</div>';
+            }
+            
+            // Contact Information
+            if (profile.contact_email || profile.contact_phone) {
+                details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">📞 Contact Information:</strong><br>';
+                if (profile.contact_email) details += `• Email: ${escapeHtml(profile.contact_email)}<br>`;
+                if (profile.contact_phone) details += `• Phone: ${escapeHtml(profile.contact_phone)}<br>`;
+                details += '</div>';
+            }
+            
+            // Social Media Links
+            if (profile.social_media_links) {
+                try {
+                    const socialLinks = JSON.parse(profile.social_media_links);
+                    if (Object.keys(socialLinks).length > 0) {
+                        details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">🔗 Social Media Links:</strong><br>';
+                        Object.entries(socialLinks).forEach(([platform, url]) => {
+                            details += `• ${escapeHtml(platform)}: <a href="${escapeHtml(url)}" target="_blank">${escapeHtml(url.substring(0, 50))}...</a><br>`;
+                        });
+                        details += '</div>';
+                    }
+                } catch (e) {
+                    // Ignore parsing errors
+                }
+            }
+            
+            // Family Information
+            if (profile.family_members) {
+                try {
+                    const family = JSON.parse(profile.family_members);
+                    if (family.length > 0) {
+                        details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">👨‍👩‍👧‍👦 Family:</strong><br>';
+                        family.slice(0, 5).forEach(member => {
+                            details += `• ${escapeHtml(member.name || member)} (${escapeHtml(member.relationship || 'Family member')})<br>`;
+                        });
+                        details += '</div>';
+                    }
+                } catch (e) {
+                    // Ignore parsing errors
+                }
+            }
+            
+            // Additional Information
+            if (profile.about_section || profile.favorite_quotes || profile.other_names || profile.political_views) {
+                details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">📚 Additional Information:</strong><br>';
+                if (profile.about_section) details += `• About: ${escapeHtml(profile.about_section.substring(0, 100))}...<br>`;
+                if (profile.favorite_quotes) details += `• Favorite Quote: ${escapeHtml(profile.favorite_quotes.substring(0, 100))}...<br>`;
+                if (profile.other_names) details += `• Other Names: ${escapeHtml(profile.other_names)}<br>`;
+                if (profile.political_views) details += `• Political Views: ${escapeHtml(profile.political_views)}<br>`;
+                details += '</div>';
+            }
+            
+            // Interests
+            if (profile.interests_detailed) {
+                try {
+                    const interests = JSON.parse(profile.interests_detailed);
+                    if (interests.length > 0) {
+                        details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">🎯 Interests:</strong><br>';
+                        details += `• ${interests.map(i => escapeHtml(i)).join(', ')}<br>`;
+                        details += '</div>';
+                    }
+                } catch (e) {
+                    if (profile.interests_detailed) {
+                        details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">🎯 Interests:</strong><br>';
+                        details += `• ${escapeHtml(profile.interests_detailed)}<br>`;
+                        details += '</div>';
+                    }
+                }
+            }
+            
+            // Life Events
+            if (profile.life_events) {
+                try {
+                    const events = JSON.parse(profile.life_events);
+                    if (events.length > 0) {
+                        details += '<div style="margin-bottom: 10px;"><strong style="color: #007bff;">📅 Life Events:</strong><br>';
+                        events.slice(0, 5).forEach(event => {
+                            details += `• ${escapeHtml(event)}<br>`;
+                        });
+                        details += '</div>';
+                    }
+                } catch (e) {
+                    // Ignore parsing errors
+                }
+            }
+            
+            return details || '<p style="color: #6c757d; font-style: italic;">No additional details available.</p>';
+        }
+    </script>
+</body>
+</html>
